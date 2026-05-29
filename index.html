@@ -28,6 +28,7 @@
       background: radial-gradient(circle at top left, #1e3a8a 0, #0f172a 34%, #020617 100%);
       color: var(--text);
       min-height: 100vh;
+      overflow-x: hidden;
     }
 
     header {
@@ -67,11 +68,13 @@
       padding: 16px;
       overflow: auto;
       max-height: calc(100vh - 112px);
+      min-width: 0;
     }
 
     main {
       padding: 18px;
       overflow: auto;
+      min-width: 0;
     }
 
     .section {
@@ -251,6 +254,7 @@
       padding: 16px;
       overflow: auto;
       color: #0f172a;
+      -webkit-overflow-scrolling: touch;
     }
 
     .plate-grid {
@@ -276,6 +280,10 @@
       background: rgba(59, 130, 246, .18);
       border: 1px solid rgba(37, 99, 235, .2);
       border-radius: 9px;
+    }
+
+    .corner {
+      background: #dbeafe;
     }
 
     .well {
@@ -366,15 +374,118 @@
     }
 
     @media (max-width: 980px) {
+      header {
+        padding: 16px 14px 10px;
+      }
+
+      h1 {
+        font-size: 22px;
+        letter-spacing: 0;
+      }
+
+      .subtitle {
+        font-size: 13px;
+      }
+
       .app {
         grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 10px;
       }
+
+      aside, main {
+        border-radius: 16px;
+      }
+
       aside {
         max-height: none;
+        padding: 10px;
       }
+
+      main {
+        padding: 10px;
+      }
+
+      .section {
+        padding: 10px;
+        border-radius: 14px;
+        margin-bottom: 10px;
+      }
+
+      .workspace-head {
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .plate-title {
+        font-size: 16px;
+      }
+
+      .selected-badge {
+        max-width: 100%;
+        font-size: 12px;
+        padding: 7px 9px;
+      }
+
+      .plate-wrap {
+        border-radius: 14px;
+        max-height: 68vh;
+        padding: 10px;
+        overscroll-behavior: contain;
+      }
+
+      .plate-grid {
+        gap: 3px;
+        grid-auto-rows: 32px;
+        min-width: max-content;
+        touch-action: pan-x pan-y;
+      }
+
+      .corner, .col-head, .row-head {
+        font-size: 10px;
+        border-radius: 6px;
+      }
+
+      .corner {
+        position: sticky;
+        top: 0;
+        left: 0;
+        z-index: 5;
+      }
+
+      .col-head {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+      }
+
+      .row-head {
+        position: sticky;
+        left: 0;
+        z-index: 4;
+      }
+
       .well {
-        min-width: 58px;
-        height: 40px;
+        min-width: 44px;
+        height: 32px;
+        border-radius: 8px;
+        padding: 3px 4px;
+        font-size: 10px;
+      }
+
+      .well .coord {
+        top: 2px;
+        left: 4px;
+        font-size: 7px;
+      }
+
+      .tool-row {
+        gap: 7px;
+      }
+
+      .btn {
+        min-height: 42px;
+        padding: 9px 10px;
       }
     }
 
@@ -405,6 +516,7 @@
           <option value="24">24 poços — 4 × 6</option>
           <option value="48">48 poços — 6 × 8</option>
           <option value="96" selected>96 poços — 8 × 12</option>
+          <option value="384">384 poços — 16 × 24</option>
         </select>
         <div class="status" id="plateInfo"></div>
       </div>
@@ -431,6 +543,7 @@
           <button class="btn secondary" id="eraserBtn">Borracha</button>
           <button class="btn danger" id="clearPlateBtn">Limpar placa</button>
         </div>
+        <button class="btn danger block" id="resetGroupsBtn" style="margin-top: 8px;">Resetar grupos</button>
       </div>
 
       <div class="section export-area">
@@ -467,7 +580,8 @@
       12: { rows: 3, cols: 4,  label: 'Placa de 12 poços' },
       24: { rows: 4, cols: 6,  label: 'Placa de 24 poços' },
       48: { rows: 6, cols: 8,  label: 'Placa de 48 poços' },
-      96: { rows: 8, cols: 12, label: 'Placa de 96 poços' }
+      96: { rows: 8, cols: 12, label: 'Placa de 96 poços' },
+      384: { rows: 16, cols: 24, label: 'Placa de 384 poços' }
     };
 
     const defaultGroups = [];
@@ -482,6 +596,8 @@
 
     let isPainting = false;
     let lastPainted = null;
+    let touchPaintStart = null;
+    let resizeTimer = null;
 
     const el = {
       platePreset: document.getElementById('platePreset'),
@@ -493,6 +609,7 @@
       actionStatus: document.getElementById('actionStatus'),
       eraserBtn: document.getElementById('eraserBtn'),
       clearPlateBtn: document.getElementById('clearPlateBtn'),
+      resetGroupsBtn: document.getElementById('resetGroupsBtn'),
       plateTitle: document.getElementById('plateTitle'),
       plateSubtitle: document.getElementById('plateSubtitle'),
       selectedBadge: document.getElementById('selectedBadge'),
@@ -501,8 +618,27 @@
       printBtn: document.getElementById('printBtn')
     };
 
+    function rowLabel(index) {
+      let label = '';
+      index += 1;
+      while (index > 0) {
+        const remainder = (index - 1) % 26;
+        label = String.fromCharCode(65 + remainder) + label;
+        index = Math.floor((index - 1) / 26);
+      }
+      return label;
+    }
+
+    function rowIndexFromLabel(label) {
+      let index = 0;
+      for (const char of label) {
+        index = index * 26 + (char.charCodeAt(0) - 64);
+      }
+      return index - 1;
+    }
+
     function coord(row, col) {
-      return `${String.fromCharCode(65 + row)}${col + 1}`;
+      return `${rowLabel(row)}${col + 1}`;
     }
 
     function getPreset() {
@@ -574,6 +710,12 @@
       saveState();
     }
 
+    function finishPainting() {
+      isPainting = false;
+      lastPainted = null;
+      touchPaintStart = null;
+    }
+
     function updateWellElement(key) {
       const well = document.querySelector(`[data-well="${key}"]`);
       if (!well) return;
@@ -591,10 +733,21 @@
       well.querySelector('.well-label').textContent = group.name;
     }
 
+    function getPlateMetrics() {
+      const isMobile = window.matchMedia('(max-width: 980px)').matches;
+      const p = getPreset();
+      if (!isMobile) return { rowHeader: 42, well: 72 };
+      return {
+        rowHeader: 34,
+        well: p.cols > 12 ? 44 : 52
+      };
+    }
+
     function renderPlate() {
       const p = getPreset();
+      const metrics = getPlateMetrics();
       el.plateGrid.innerHTML = '';
-      el.plateGrid.style.gridTemplateColumns = `42px repeat(${p.cols}, minmax(72px, 1fr))`;
+      el.plateGrid.style.gridTemplateColumns = `${metrics.rowHeader}px repeat(${p.cols}, ${metrics.well}px)`;
 
       const corner = document.createElement('div');
       corner.className = 'corner';
@@ -610,7 +763,7 @@
       for (let r = 0; r < p.rows; r++) {
         const rowHead = document.createElement('div');
         rowHead.className = 'row-head';
-        rowHead.textContent = String.fromCharCode(65 + r);
+        rowHead.textContent = rowLabel(r);
         el.plateGrid.appendChild(rowHead);
 
         for (let c = 0; c < p.cols; c++) {
@@ -621,6 +774,13 @@
           well.innerHTML = `<span class="coord">${key}</span><span class="well-label"></span>`;
 
           well.addEventListener('pointerdown', e => {
+            if (e.pointerType === 'touch') {
+              isPainting = false;
+              lastPainted = null;
+              touchPaintStart = { key, x: e.clientX, y: e.clientY, moved: false };
+              return;
+            }
+
             e.preventDefault();
             isPainting = true;
             lastPainted = null;
@@ -633,26 +793,36 @@
           });
 
           well.addEventListener('pointermove', e => {
+            if (e.pointerType === 'touch' && touchPaintStart) {
+              const dx = Math.abs(e.clientX - touchPaintStart.x);
+              const dy = Math.abs(e.clientY - touchPaintStart.y);
+              if (dx > 8 || dy > 8) touchPaintStart.moved = true;
+              return;
+            }
+
             if (!isPainting) return;
             const target = document.elementFromPoint(e.clientX, e.clientY);
             const targetWell = target?.closest?.('[data-well]');
             if (targetWell) paintWell(targetWell.dataset.well);
           });
 
-          well.addEventListener('pointerup', () => {
+          well.addEventListener('pointerup', e => {
+            if (e.pointerType === 'touch') {
+              if (touchPaintStart && !touchPaintStart.moved) paintWell(touchPaintStart.key);
+              touchPaintStart = null;
+              return;
+            }
+
             isPainting = false;
             lastPainted = null;
           });
+
+          well.addEventListener('pointercancel', finishPainting);
 
           el.plateGrid.appendChild(well);
           updateWellElement(key);
         }
       }
-
-      document.addEventListener('pointerup', () => {
-        isPainting = false;
-        lastPainted = null;
-      }, { once: true });
     }
 
     function renderGroups() {
@@ -786,7 +956,7 @@
           delete state.wells[key];
           return;
         }
-        const row = rowLetter.charCodeAt(0) - 65;
+        const row = rowIndexFromLabel(rowLetter);
         const col = colNumber - 1;
         if (row >= p.rows || col >= p.cols) delete state.wells[key];
       });
@@ -870,7 +1040,7 @@
       for (let r = 0; r < p.rows; r++) {
         const rowNumber = r + 2;
         rows += `<row r="${rowNumber}" ht="44" customHeight="1">`;
-        rows += textCell(`A${rowNumber}`, String.fromCharCode(65 + r), 1);
+        rows += textCell(`A${rowNumber}`, rowLabel(r), 1);
 
         for (let c = 0; c < p.cols; c++) {
           const key = coord(r, c);
@@ -1210,7 +1380,8 @@
         if (!raw) return;
         const parsed = JSON.parse(raw);
 
-        if (!parsed || !presets[parsed.preset]) return;
+        if (!parsed) return;
+        if (!presets[parsed.preset]) parsed.preset = '96';
 
         const hasLegacySeededData = Array.isArray(parsed.groups) && parsed.groups.some(g =>
           typeof g?.name === 'string' && g.name.trim().toLowerCase() === 'controle'
@@ -1262,6 +1433,17 @@
       render();
     });
 
+    el.resetGroupsBtn.addEventListener('click', () => {
+      if (!confirm('Resetar todos os grupos? Os poços preenchidos também serão limpos.')) return;
+      state.groups = [];
+      state.selectedGroupId = null;
+      state.eraser = false;
+      state.wells = {};
+      setActionStatus('Grupos resetados.');
+      render();
+      saveState();
+    });
+
     el.downloadExcelBtn.addEventListener('click', () => {
       download(`placa_${state.preset}_pocos_layout.xlsx`, buildExcelWorkbook(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     });
@@ -1271,7 +1453,13 @@
       openPrintPreview();
     });
 
+    document.addEventListener('pointerup', finishPainting);
+    document.addEventListener('pointercancel', finishPainting);
     window.addEventListener('beforeunload', saveState);
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(renderPlate, 150);
+    });
 
     loadState();
     render();
