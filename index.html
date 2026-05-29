@@ -1,0 +1,1136 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Planejador de Placas - Cultura Celular</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --line: #334155;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --well-empty: #e2e8f0;
+      --well-border: #64748b;
+      --danger: #ef4444;
+      --ok: #22c55e;
+      --shadow: 0 18px 60px rgba(0,0,0,.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, #1e3a8a 0, #0f172a 34%, #020617 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 22px 28px 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, .2);
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(22px, 3vw, 34px);
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 330px 1fr;
+      gap: 18px;
+      padding: 18px;
+      min-height: calc(100vh - 86px);
+    }
+
+    aside, main {
+      background: rgba(15, 23, 42, .82);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(148, 163, 184, .22);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    aside {
+      padding: 16px;
+      overflow: auto;
+      max-height: calc(100vh - 112px);
+    }
+
+    main {
+      padding: 18px;
+      overflow: auto;
+    }
+
+    .section {
+      padding: 14px;
+      background: rgba(30, 41, 59, .6);
+      border: 1px solid rgba(148, 163, 184, .16);
+      border-radius: 18px;
+      margin-bottom: 14px;
+    }
+
+    .section h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      letter-spacing: -.01em;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    input, select, button, textarea {
+      font-family: inherit;
+    }
+
+    input[type="text"], select, textarea {
+      width: 100%;
+      border: 1px solid rgba(148, 163, 184, .28);
+      background: rgba(15, 23, 42, .85);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 11px;
+      outline: none;
+      font-size: 14px;
+    }
+
+    input[type="text"]:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, .14);
+    }
+
+    input[type="color"] {
+      width: 56px;
+      height: 42px;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .row > * { flex: 1; }
+    .row .color-wrap { flex: 0 0 auto; }
+
+    .btn {
+      appearance: none;
+      border: 1px solid rgba(148, 163, 184, .25);
+      color: var(--text);
+      background: linear-gradient(180deg, #2563eb, #1d4ed8);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform .08s ease, filter .16s ease, background .16s ease;
+      user-select: none;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .btn:hover { filter: brightness(1.08); }
+    .btn:active { transform: translateY(1px); }
+    .btn.secondary { background: rgba(30, 41, 59, .95); }
+    .btn.danger { background: linear-gradient(180deg, #ef4444, #b91c1c); }
+    .btn.ok { background: linear-gradient(180deg, #22c55e, #15803d); }
+    .btn.small { padding: 7px 9px; border-radius: 10px; font-size: 12px; }
+    .btn.block { width: 100%; }
+
+    .group-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .group-item {
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 9px;
+      border: 1px solid rgba(148, 163, 184, .22);
+      background: rgba(15, 23, 42, .7);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: border-color .16s, background .16s, transform .08s;
+    }
+
+    .group-item:hover {
+      background: rgba(30, 41, 59, .9);
+    }
+
+    .group-item.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, .12);
+    }
+
+    .swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,.5);
+    }
+
+    .group-name {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 14px;
+    }
+
+    .tool-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      margin-top: 10px;
+    }
+
+    .workspace-head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .plate-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+
+    .selected-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(30, 41, 59, .9);
+      border: 1px solid rgba(148, 163, 184, .2);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .plate-wrap {
+      background: #dbeafe;
+      border: 1px solid #93c5fd;
+      border-radius: 20px;
+      padding: 16px;
+      overflow: auto;
+      color: #0f172a;
+    }
+
+    .plate-grid {
+      display: grid;
+      grid-auto-rows: minmax(34px, 1fr);
+      gap: 5px;
+      width: max-content;
+      min-width: 100%;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .corner, .col-head, .row-head {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: 800;
+      font-size: 12px;
+      color: #1e293b;
+    }
+
+    .col-head, .row-head {
+      background: rgba(59, 130, 246, .18);
+      border: 1px solid rgba(37, 99, 235, .2);
+      border-radius: 9px;
+    }
+
+    .well {
+      position: relative;
+      min-width: 72px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--well-empty);
+      border: 1px solid #94a3b8;
+      color: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 4px 5px;
+      cursor: crosshair;
+      font-size: 12px;
+      font-weight: 800;
+      overflow: hidden;
+      transition: transform .04s ease, filter .1s ease;
+    }
+
+    .well:hover {
+      outline: 3px solid rgba(37, 99, 235, .28);
+      z-index: 2;
+    }
+
+    .well:active { transform: scale(.98); }
+
+    .well .coord {
+      position: absolute;
+      top: 3px;
+      left: 5px;
+      font-size: 9px;
+      opacity: .45;
+      font-weight: 900;
+    }
+
+    .well.empty {
+      color: rgba(15, 23, 42, .42);
+      font-weight: 700;
+    }
+
+    .well-label {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-height: 1.05;
+      pointer-events: none;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      gap: 7px;
+      align-items: center;
+      padding: 7px 9px;
+      border: 1px solid rgba(148, 163, 184, .25);
+      background: rgba(15, 23, 42, .65);
+      border-radius: 999px;
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .muted { color: var(--muted); }
+
+    details summary {
+      cursor: pointer;
+      color: var(--text);
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    textarea {
+      min-height: 130px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+
+    @media (max-width: 980px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+      aside {
+        max-height: none;
+      }
+      .well {
+        min-width: 58px;
+        height: 40px;
+      }
+    }
+
+    @media print {
+      body { background: #fff; color: #000; }
+      header, aside, .workspace-head .selected-badge, .tool-row, .section.export-area { display: none !important; }
+      .app { display: block; padding: 0; }
+      main { box-shadow: none; border: 0; background: #fff; }
+      .plate-wrap { background: #fff; border: 0; padding: 0; }
+      .well { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Planejador de placa de cultura</h1>
+    <div class="subtitle">Escolha o tamanho da placa, crie grupos com cores e preencha os poços clicando e arrastando. Tudo fica salvo no próprio navegador.</div>
+  </header>
+
+  <div class="app">
+    <aside>
+      <div class="section">
+        <h2>1. Tipo de placa</h2>
+        <label for="platePreset">Molde</label>
+        <select id="platePreset">
+          <option value="6">6 poços — 2 × 3</option>
+          <option value="12">12 poços — 3 × 4</option>
+          <option value="24">24 poços — 4 × 6</option>
+          <option value="48">48 poços — 6 × 8</option>
+          <option value="96" selected>96 poços — 8 × 12</option>
+        </select>
+        <div class="status" id="plateInfo"></div>
+      </div>
+
+      <div class="section">
+        <h2>2. Adicionar grupo</h2>
+        <label for="groupName">Nome do grupo/amostra</label>
+        <input type="text" id="groupName" placeholder="Ex.: Aβ 20, DMT 10, Controle" />
+        <div class="row" style="margin-top: 10px;">
+          <div class="color-wrap">
+            <label for="groupColor">Cor</label>
+            <input type="color" id="groupColor" value="#facc15" />
+          </div>
+          <button class="btn ok" id="addGroupBtn">Adicionar</button>
+        </div>
+        <div class="status">Depois de criar, clique no grupo e arraste sobre a placa para preencher os poços.</div>
+      </div>
+
+      <div class="section">
+        <h2>3. Grupos</h2>
+        <div class="group-list" id="groupList"></div>
+        <div class="status" id="actionStatus"></div>
+        <div class="tool-row">
+          <button class="btn secondary" id="eraserBtn">Borracha</button>
+          <button class="btn danger" id="clearPlateBtn">Limpar placa</button>
+        </div>
+      </div>
+
+      <div class="section export-area">
+        <h2>4. Exportar</h2>
+        <div class="tool-row">
+          <button class="btn secondary" id="downloadExcelBtn">Baixar Excel</button>
+          <button class="btn secondary" id="printBtn">Imprimir</button>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="workspace-head">
+        <div>
+          <div class="plate-title" id="plateTitle">Placa de 96 poços</div>
+          <div class="muted" id="plateSubtitle">8 linhas × 12 colunas</div>
+        </div>
+        <div class="selected-badge" id="selectedBadge">
+          <span class="swatch" style="background:#facc15"></span>
+          <span>Nenhum grupo selecionado</span>
+        </div>
+      </div>
+
+      <div class="plate-wrap">
+        <div class="plate-grid" id="plateGrid"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    const presets = {
+      6:  { rows: 2, cols: 3,  label: 'Placa de 6 poços' },
+      12: { rows: 3, cols: 4,  label: 'Placa de 12 poços' },
+      24: { rows: 4, cols: 6,  label: 'Placa de 24 poços' },
+      48: { rows: 6, cols: 8,  label: 'Placa de 48 poços' },
+      96: { rows: 8, cols: 12, label: 'Placa de 96 poços' }
+    };
+
+    const defaultGroups = [];
+
+    let state = {
+      preset: '96',
+      groups: structuredClone(defaultGroups),
+      selectedGroupId: null,
+      eraser: false,
+      wells: {}
+    };
+
+    let isPainting = false;
+    let lastPainted = null;
+
+    const el = {
+      platePreset: document.getElementById('platePreset'),
+      plateInfo: document.getElementById('plateInfo'),
+      groupName: document.getElementById('groupName'),
+      groupColor: document.getElementById('groupColor'),
+      addGroupBtn: document.getElementById('addGroupBtn'),
+      groupList: document.getElementById('groupList'),
+      actionStatus: document.getElementById('actionStatus'),
+      eraserBtn: document.getElementById('eraserBtn'),
+      clearPlateBtn: document.getElementById('clearPlateBtn'),
+      plateTitle: document.getElementById('plateTitle'),
+      plateSubtitle: document.getElementById('plateSubtitle'),
+      selectedBadge: document.getElementById('selectedBadge'),
+      plateGrid: document.getElementById('plateGrid'),
+      downloadExcelBtn: document.getElementById('downloadExcelBtn'),
+      printBtn: document.getElementById('printBtn')
+    };
+
+    function coord(row, col) {
+      return `${String.fromCharCode(65 + row)}${col + 1}`;
+    }
+
+    function getPreset() {
+      return presets[state.preset];
+    }
+
+    function textColorFor(bg) {
+      const hex = bg.replace('#', '');
+      const r = parseInt(hex.slice(0,2), 16);
+      const g = parseInt(hex.slice(2,4), 16);
+      const b = parseInt(hex.slice(4,6), 16);
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+      return yiq >= 150 ? '#0f172a' : '#ffffff';
+    }
+
+    function getGroup(id) {
+      return state.groups.find(g => g.id === id) || null;
+    }
+
+    function createGroupId() {
+      try {
+        if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+      } catch (_) {}
+      try {
+        if (globalThis.crypto?.getRandomValues) {
+          const bytes = new Uint8Array(16);
+          globalThis.crypto.getRandomValues(bytes);
+          return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+        }
+      } catch (_) {}
+      return `grp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function setActionStatus(message) {
+      if (el.actionStatus) el.actionStatus.textContent = message || '';
+    }
+
+    function normalizeGroups(groups) {
+      if (!Array.isArray(groups)) return [];
+      return groups
+        .filter(g => g && typeof g === 'object')
+        .map(g => ({
+          id: String(g.id || createGroupId()),
+          name: String(g.name || '').trim(),
+          color: /^#[0-9a-fA-F]{6}$/.test(String(g.color || '').trim()) ? String(g.color).trim() : '#facc15'
+        }))
+        .filter(g => g.name.length > 0);
+    }
+
+    function ensureStateShape() {
+      state.groups = normalizeGroups(state.groups);
+      if (!state.groups.some(g => g.id === state.selectedGroupId)) {
+        state.selectedGroupId = null;
+      }
+    }
+
+    function paintWell(key) {
+      if (!key || lastPainted === key) return;
+      lastPainted = key;
+
+      if (state.eraser) {
+        delete state.wells[key];
+      } else if (state.selectedGroupId) {
+        state.wells[key] = state.selectedGroupId;
+      } else {
+        return;
+      }
+      updateWellElement(key);
+      saveState();
+    }
+
+    function updateWellElement(key) {
+      const well = document.querySelector(`[data-well="${key}"]`);
+      if (!well) return;
+      const group = getGroup(state.wells[key]);
+      if (!group) {
+        well.style.background = '';
+        well.style.color = '';
+        well.classList.add('empty');
+        well.querySelector('.well-label').textContent = '';
+        return;
+      }
+      well.classList.remove('empty');
+      well.style.background = group.color;
+      well.style.color = textColorFor(group.color);
+      well.querySelector('.well-label').textContent = group.name;
+    }
+
+    function renderPlate() {
+      const p = getPreset();
+      el.plateGrid.innerHTML = '';
+      el.plateGrid.style.gridTemplateColumns = `42px repeat(${p.cols}, minmax(72px, 1fr))`;
+
+      const corner = document.createElement('div');
+      corner.className = 'corner';
+      el.plateGrid.appendChild(corner);
+
+      for (let c = 0; c < p.cols; c++) {
+        const head = document.createElement('div');
+        head.className = 'col-head';
+        head.textContent = c + 1;
+        el.plateGrid.appendChild(head);
+      }
+
+      for (let r = 0; r < p.rows; r++) {
+        const rowHead = document.createElement('div');
+        rowHead.className = 'row-head';
+        rowHead.textContent = String.fromCharCode(65 + r);
+        el.plateGrid.appendChild(rowHead);
+
+        for (let c = 0; c < p.cols; c++) {
+          const key = coord(r, c);
+          const well = document.createElement('div');
+          well.className = 'well empty';
+          well.dataset.well = key;
+          well.innerHTML = `<span class="coord">${key}</span><span class="well-label"></span>`;
+
+          well.addEventListener('pointerdown', e => {
+            e.preventDefault();
+            isPainting = true;
+            lastPainted = null;
+            well.setPointerCapture(e.pointerId);
+            paintWell(key);
+          });
+
+          well.addEventListener('pointerenter', () => {
+            if (isPainting) paintWell(key);
+          });
+
+          well.addEventListener('pointermove', e => {
+            if (!isPainting) return;
+            const target = document.elementFromPoint(e.clientX, e.clientY);
+            const targetWell = target?.closest?.('[data-well]');
+            if (targetWell) paintWell(targetWell.dataset.well);
+          });
+
+          well.addEventListener('pointerup', () => {
+            isPainting = false;
+            lastPainted = null;
+          });
+
+          el.plateGrid.appendChild(well);
+          updateWellElement(key);
+        }
+      }
+
+      document.addEventListener('pointerup', () => {
+        isPainting = false;
+        lastPainted = null;
+      }, { once: true });
+    }
+
+    function renderGroups() {
+      el.groupList.innerHTML = '';
+
+      if (!state.groups.length) {
+        const empty = document.createElement('div');
+        empty.className = 'status';
+        empty.textContent = 'Nenhum grupo adicionado. Crie um grupo acima para começar a preencher a placa.';
+        el.groupList.appendChild(empty);
+        return;
+      }
+
+      state.groups.forEach(group => {
+        const item = document.createElement('div');
+        item.className = 'group-item' + (state.selectedGroupId === group.id && !state.eraser ? ' active' : '');
+
+        const swatch = document.createElement('span');
+        swatch.className = 'swatch';
+        swatch.style.background = group.color;
+
+        const name = document.createElement('span');
+        name.className = 'group-name';
+        name.title = group.name;
+        name.textContent = group.name;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn small secondary';
+        removeBtn.type = 'button';
+        removeBtn.title = 'Remover grupo';
+        removeBtn.textContent = '×';
+
+        item.appendChild(swatch);
+        item.appendChild(name);
+        item.appendChild(removeBtn);
+
+        item.addEventListener('click', () => {
+          state.selectedGroupId = group.id;
+          state.eraser = false;
+          setActionStatus(`Grupo "${group.name}" selecionado.`);
+          render();
+          saveState();
+        });
+
+        removeBtn.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          if (!confirm(`Remover o grupo "${group.name}"? Os poços preenchidos com ele serão limpos.`)) return;
+
+          state.groups = state.groups.filter(g => g.id !== group.id);
+          Object.keys(state.wells).forEach(k => {
+            if (state.wells[k] === group.id) delete state.wells[k];
+          });
+
+          if (state.selectedGroupId === group.id) state.selectedGroupId = null;
+
+          setActionStatus(`Grupo "${group.name}" removido.`);
+          render();
+          saveState();
+        });
+
+        el.groupList.appendChild(item);
+      });
+    }
+
+    function renderMeta() {
+      const p = getPreset();
+      el.plateTitle.textContent = p.label;
+      el.plateSubtitle.textContent = `${p.rows} linhas × ${p.cols} colunas`;
+      el.plateInfo.textContent = `${p.rows * p.cols} poços: ${p.rows} linhas e ${p.cols} colunas.`;
+      el.platePreset.value = state.preset;
+
+      const selected = getGroup(state.selectedGroupId);
+      if (state.eraser) {
+        el.selectedBadge.innerHTML = `<span class="swatch" style="background:#e5e7eb"></span><span>Borracha selecionada</span>`;
+        el.eraserBtn.textContent = 'Borracha ativa';
+        el.eraserBtn.classList.add('danger');
+      } else if (selected) {
+        el.selectedBadge.innerHTML = `<span class="swatch" style="background:${selected.color}"></span><span>${escapeHtml(selected.name)} selecionado</span>`;
+        el.eraserBtn.textContent = 'Borracha';
+        el.eraserBtn.classList.remove('danger');
+      } else {
+        el.selectedBadge.innerHTML = `<span class="swatch" style="background:#e5e7eb"></span><span>Nenhum grupo selecionado</span>`;
+        el.eraserBtn.textContent = 'Borracha';
+        el.eraserBtn.classList.remove('danger');
+      }
+    }
+
+    function render() {
+      renderMeta();
+      renderGroups();
+      renderPlate();
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function addGroup() {
+      const name = el.groupName.value.trim();
+      if (!name) {
+        alert('Digite um nome para o grupo.');
+        return;
+      }
+      const group = {
+        id: createGroupId(),
+        name,
+        color: el.groupColor.value
+      };
+      state.groups.push(group);
+      state.selectedGroupId = group.id;
+      state.eraser = false;
+      el.groupName.value = '';
+      setActionStatus(`Grupo "${group.name}" adicionado.`);
+      render();
+      saveState();
+    }
+
+    function clearInvalidWellsForPreset() {
+      const p = getPreset();
+      Object.keys(state.wells).forEach(key => {
+        const rowLetter = key.match(/^[A-Z]+/)?.[0];
+        const colNumber = Number(key.match(/\d+$/)?.[0]);
+        if (!rowLetter || Number.isNaN(colNumber)) {
+          delete state.wells[key];
+          return;
+        }
+        const row = rowLetter.charCodeAt(0) - 65;
+        const col = colNumber - 1;
+        if (row >= p.rows || col >= p.cols) delete state.wells[key];
+      });
+    }
+
+    function buildExcelHtml() {
+      const p = getPreset();
+      const title = escapeHtml(getPreset().label);
+      const subtitle = escapeHtml(`${p.rows} linhas x ${p.cols} colunas`);
+      let rows = '<tr><th></th>';
+
+      for (let c = 0; c < p.cols; c++) {
+        rows += `<th>${c + 1}</th>`;
+      }
+      rows += '</tr>';
+
+      for (let r = 0; r < p.rows; r++) {
+        rows += `<tr><th>${String.fromCharCode(65 + r)}</th>`;
+        for (let c = 0; c < p.cols; c++) {
+          const key = coord(r, c);
+          const group = getGroup(state.wells[key]);
+          const background = group?.color || '#e2e8f0';
+          const color = group ? textColorFor(group.color) : '#64748b';
+          const groupName = group ? escapeHtml(group.name) : '';
+
+          rows += `<td style="background:${background};color:${color};">
+            <div class="coord-text">${key}</div>
+            <div class="group-text">${groupName}</div>
+          </td>`;
+        }
+        rows += '</tr>';
+      }
+
+      return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #0f172a;
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 18px;
+    }
+    .subtitle {
+      margin-bottom: 12px;
+      color: #475569;
+      font-size: 12px;
+    }
+    table {
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #94a3b8;
+      text-align: center;
+      vertical-align: middle;
+      mso-number-format: "\\@";
+    }
+    th {
+      width: 42px;
+      height: 28px;
+      background: #dbeafe;
+      color: #1e293b;
+      font-weight: 700;
+    }
+    td {
+      width: 92px;
+      height: 58px;
+      font-weight: 700;
+    }
+    .coord-text {
+      font-size: 10px;
+      opacity: .7;
+      font-weight: 700;
+    }
+    .group-text {
+      font-size: 12px;
+      margin-top: 3px;
+    }
+  </style>
+</head>
+<body>
+  <h1>${title}</h1>
+  <div class="subtitle">${subtitle}</div>
+  <table>${rows}</table>
+</body>
+</html>`;
+    }
+
+    function download(filename, content, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      a.remove();
+
+      setTimeout(() => URL.revokeObjectURL(url), 1200);
+
+      // Fallback para webviews que bloqueiam download programático
+      setTimeout(() => {
+        try {
+          if (document.hasFocus()) return;
+          window.open(url, '_blank', 'noopener');
+        } catch (_) {}
+      }, 100);
+    }
+
+    function buildPrintHtml() {
+      const title = escapeHtml(el.plateTitle.textContent);
+      const subtitle = escapeHtml(el.plateSubtitle.textContent);
+      const plate = document.querySelector('.plate-wrap').outerHTML;
+
+      return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      color: #0f172a;
+      background: #f8fafc;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .print-toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .print-toolbar button {
+      border: 1px solid #94a3b8;
+      background: #1d4ed8;
+      color: #fff;
+      border-radius: 8px;
+      padding: 9px 13px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .print-toolbar button.secondary {
+      background: #fff;
+      color: #0f172a;
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 22px;
+    }
+    .subtitle {
+      margin-bottom: 16px;
+      color: #475569;
+      font-size: 13px;
+    }
+    .plate-wrap {
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 12px;
+      overflow: visible;
+      color: #0f172a;
+      width: max-content;
+      max-width: 100%;
+    }
+    .plate-grid {
+      display: grid;
+      grid-auto-rows: minmax(34px, 1fr);
+      gap: 5px;
+      width: max-content;
+      user-select: none;
+    }
+    .corner, .col-head, .row-head {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: 800;
+      font-size: 12px;
+      color: #1e293b;
+    }
+    .col-head, .row-head {
+      background: #dbeafe;
+      border: 1px solid #93c5fd;
+      border-radius: 7px;
+    }
+    .well {
+      position: relative;
+      min-width: 72px;
+      height: 44px;
+      border-radius: 9px;
+      background: #e2e8f0;
+      border: 1px solid #94a3b8;
+      color: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 4px 5px;
+      font-size: 12px;
+      font-weight: 800;
+      overflow: hidden;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .coord {
+      position: absolute;
+      top: 3px;
+      left: 5px;
+      font-size: 9px;
+      opacity: .45;
+      font-weight: 900;
+    }
+    .well-label {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-height: 1.05;
+    }
+    @page { size: landscape; margin: 10mm; }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .print-toolbar { display: none; }
+      .plate-wrap { border: 0; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-toolbar">
+    <button onclick="window.print()">Imprimir</button>
+    <button class="secondary" onclick="window.close()">Fechar</button>
+  </div>
+  <h1>${title}</h1>
+  <div class="subtitle">${subtitle}</div>
+  ${plate}
+</body>
+</html>`;
+    }
+
+    function openPrintPreview() {
+      const printWin = window.open('', '_blank', 'width=1200,height=800');
+      if (!printWin) {
+        window.print();
+        return;
+      }
+
+      printWin.document.open();
+      printWin.document.write(buildPrintHtml());
+      printWin.document.close();
+
+      setTimeout(() => {
+        printWin.focus();
+        printWin.print();
+      }, 300);
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem('plate-planner-state-v2', JSON.stringify(state));
+        return true;
+      } catch (err) {
+        console.warn('Não foi possível salvar estado local:', err);
+        setActionStatus('Aviso: sem permissão para salvar localmente; a sessão atual ainda funciona.');
+        return false;
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem('plate-planner-state-v2');
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+
+        if (!parsed || !presets[parsed.preset]) return;
+
+        const hasLegacySeededData = Array.isArray(parsed.groups) && parsed.groups.some(g =>
+          typeof g?.name === 'string' && g.name.trim().toLowerCase() === 'controle'
+        ) && parsed.selectedGroupId && Object.keys(parsed.wells || {}).length === 0;
+
+        if (hasLegacySeededData) {
+          localStorage.removeItem('plate-planner-state-v2');
+          return;
+        }
+
+        state = {
+          preset: parsed.preset || '96',
+          groups: normalizeGroups(parsed.groups),
+          selectedGroupId: parsed.selectedGroupId || null,
+          eraser: !!parsed.eraser,
+          wells: parsed.wells || {}
+        };
+
+        ensureStateShape();
+        clearInvalidWellsForPreset();
+      } catch (err) {
+        console.warn('Não foi possível carregar estado salvo:', err);
+      }
+    }
+
+    el.platePreset.addEventListener('change', () => {
+      state.preset = el.platePreset.value;
+      clearInvalidWellsForPreset();
+      saveState();
+      render();
+    });
+
+    el.addGroupBtn.addEventListener('click', addGroup);
+    el.groupName.addEventListener('keydown', e => {
+      if (e.key === 'Enter') addGroup();
+    });
+
+    el.eraserBtn.addEventListener('click', () => {
+      state.eraser = !state.eraser;
+      if (state.eraser) state.selectedGroupId = null;
+      saveState();
+      render();
+    });
+
+    el.clearPlateBtn.addEventListener('click', () => {
+      if (!confirm('Limpar todos os poços da placa atual?')) return;
+      state.wells = {};
+      saveState();
+      render();
+    });
+
+    el.downloadExcelBtn.addEventListener('click', () => {
+      download(`placa_${state.preset}_pocos_layout.xls`, buildExcelHtml(), 'application/vnd.ms-excel;charset=utf-8');
+    });
+
+    el.printBtn.addEventListener('click', () => {
+      render();
+      openPrintPreview();
+    });
+
+    window.addEventListener('beforeunload', saveState);
+
+    loadState();
+    render();
+  </script>
+</body>
+</html>
