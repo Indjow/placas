@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
@@ -792,90 +792,234 @@
       });
     }
 
-    function buildExcelHtml() {
+    function xmlEscape(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
+    }
+
+    function columnName(index) {
+      let name = '';
+      while (index > 0) {
+        const remainder = (index - 1) % 26;
+        name = String.fromCharCode(65 + remainder) + name;
+        index = Math.floor((index - 1) / 26);
+      }
+      return name;
+    }
+
+    function xlsxColor(hex) {
+      return `FF${hex.replace('#', '').toUpperCase()}`;
+    }
+
+    function textCell(ref, value, styleIndex) {
+      const text = xmlEscape(value).replaceAll('\n', '&#10;');
+      return `<c r="${ref}" t="inlineStr" s="${styleIndex}"><is><t xml:space="preserve">${text}</t></is></c>`;
+    }
+
+    function buildStyles(colorStyles) {
+      const colorEntries = [...colorStyles.entries()];
+      const fonts = [
+        '<font><sz val="11"/><name val="Calibri"/><color rgb="FF64748B"/></font>',
+        '<font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF1E293B"/></font>',
+        ...colorEntries.map(([bg]) => `<font><b/><sz val="11"/><name val="Calibri"/><color rgb="${xlsxColor(textColorFor(bg))}"/></font>`)
+      ].join('');
+
+      const fills = [
+        '<fill><patternFill patternType="none"/></fill>',
+        '<fill><patternFill patternType="gray125"/></fill>',
+        '<fill><patternFill patternType="solid"><fgColor rgb="FFDBEAFE"/><bgColor indexed="64"/></patternFill></fill>',
+        '<fill><patternFill patternType="solid"><fgColor rgb="FFE2E8F0"/><bgColor indexed="64"/></patternFill></fill>',
+        ...colorEntries.map(([bg]) => `<fill><patternFill patternType="solid"><fgColor rgb="${xlsxColor(bg)}"/><bgColor indexed="64"/></patternFill></fill>`)
+      ].join('');
+
+      const borders = '<border><left style="thin"><color rgb="FF94A3B8"/></left><right style="thin"><color rgb="FF94A3B8"/></right><top style="thin"><color rgb="FF94A3B8"/></top><bottom style="thin"><color rgb="FF94A3B8"/></bottom><diagonal/></border>';
+      const groupXfs = colorEntries.map(([, styleIndex], index) => (
+        `<xf numFmtId="0" fontId="${index + 2}" fillId="${index + 4}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>`
+      )).join('');
+
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="${colorEntries.length + 2}">${fonts}</fonts>
+  <fills count="${colorEntries.length + 4}">${fills}</fills>
+  <borders count="1">${borders}</borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="${colorEntries.length + 3}">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    ${groupXfs}
+  </cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+    }
+
+    function buildSheetXml(colorStyles) {
       const p = getPreset();
-      const title = escapeHtml(getPreset().label);
-      const subtitle = escapeHtml(`${p.rows} linhas x ${p.cols} colunas`);
-      let rows = '<tr><th></th>';
+      let rows = `<row r="1" ht="24" customHeight="1">${textCell('A1', '', 1)}`;
 
       for (let c = 0; c < p.cols; c++) {
-        rows += `<th>${c + 1}</th>`;
+        const ref = `${columnName(c + 2)}1`;
+        rows += textCell(ref, String(c + 1), 1);
       }
-      rows += '</tr>';
+      rows += '</row>';
 
       for (let r = 0; r < p.rows; r++) {
-        rows += `<tr><th>${String.fromCharCode(65 + r)}</th>`;
+        const rowNumber = r + 2;
+        rows += `<row r="${rowNumber}" ht="44" customHeight="1">`;
+        rows += textCell(`A${rowNumber}`, String.fromCharCode(65 + r), 1);
+
         for (let c = 0; c < p.cols; c++) {
           const key = coord(r, c);
           const group = getGroup(state.wells[key]);
-          const background = group?.color || '#e2e8f0';
-          const color = group ? textColorFor(group.color) : '#64748b';
-          const groupName = group ? escapeHtml(group.name) : '';
-
-          rows += `<td style="background:${background};color:${color};">
-            <div class="coord-text">${key}</div>
-            <div class="group-text">${groupName}</div>
-          </td>`;
+          const value = group ? `${key}\n${group.name}` : key;
+          const styleIndex = group ? colorStyles.get(group.color) : 2;
+          rows += textCell(`${columnName(c + 2)}${rowNumber}`, value, styleIndex);
         }
-        rows += '</tr>';
+
+        rows += '</row>';
       }
 
-      return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <style>
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      color: #0f172a;
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheetViews><sheetView workbookViewId="0"/></sheetViews>
+  <sheetFormatPr defaultRowHeight="15"/>
+  <cols>
+    <col min="1" max="1" width="6" customWidth="1"/>
+    <col min="2" max="${p.cols + 1}" width="14" customWidth="1"/>
+  </cols>
+  <sheetData>${rows}</sheetData>
+  <pageMargins left="0.25" right="0.25" top="0.35" bottom="0.35" header="0.1" footer="0.1"/>
+</worksheet>`;
     }
-    h1 {
-      margin: 0 0 4px;
-      font-size: 18px;
+
+    function crc32(bytes) {
+      if (!crc32.table) {
+        crc32.table = Array.from({ length: 256 }, (_, n) => {
+          let c = n;
+          for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+          return c >>> 0;
+        });
+      }
+
+      let crc = 0xffffffff;
+      for (const byte of bytes) crc = crc32.table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+      return (crc ^ 0xffffffff) >>> 0;
     }
-    .subtitle {
-      margin-bottom: 12px;
-      color: #475569;
-      font-size: 12px;
+
+    function u16(value) {
+      return new Uint8Array([value & 0xff, (value >>> 8) & 0xff]);
     }
-    table {
-      border-collapse: collapse;
+
+    function u32(value) {
+      return new Uint8Array([
+        value & 0xff,
+        (value >>> 8) & 0xff,
+        (value >>> 16) & 0xff,
+        (value >>> 24) & 0xff
+      ]);
     }
-    th, td {
-      border: 1px solid #94a3b8;
-      text-align: center;
-      vertical-align: middle;
-      mso-number-format: "\\@";
+
+    function concatBytes(chunks) {
+      const size = chunks.reduce((total, chunk) => total + chunk.length, 0);
+      const output = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        output.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return output;
     }
-    th {
-      width: 42px;
-      height: 28px;
-      background: #dbeafe;
-      color: #1e293b;
-      font-weight: 700;
+
+    function zipFiles(files) {
+      const encoder = new TextEncoder();
+      const localParts = [];
+      const centralParts = [];
+      const now = new Date();
+      const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+      const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+      let offset = 0;
+
+      files.forEach(file => {
+        const nameBytes = encoder.encode(file.name);
+        const dataBytes = typeof file.content === 'string' ? encoder.encode(file.content) : file.content;
+        const crc = crc32(dataBytes);
+        const localHeader = concatBytes([
+          u32(0x04034b50), u16(20), u16(0), u16(0), u16(dosTime), u16(dosDate),
+          u32(crc), u32(dataBytes.length), u32(dataBytes.length),
+          u16(nameBytes.length), u16(0), nameBytes
+        ]);
+
+        localParts.push(localHeader, dataBytes);
+
+        centralParts.push(concatBytes([
+          u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(dosTime), u16(dosDate),
+          u32(crc), u32(dataBytes.length), u32(dataBytes.length),
+          u16(nameBytes.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), nameBytes
+        ]));
+
+        offset += localHeader.length + dataBytes.length;
+      });
+
+      const centralDirectory = concatBytes(centralParts);
+      const endRecord = concatBytes([
+        u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+        u32(centralDirectory.length), u32(offset), u16(0)
+      ]);
+
+      return concatBytes([...localParts, centralDirectory, endRecord]);
     }
-    td {
-      width: 92px;
-      height: 58px;
-      font-weight: 700;
-    }
-    .coord-text {
-      font-size: 10px;
-      opacity: .7;
-      font-weight: 700;
-    }
-    .group-text {
-      font-size: 12px;
-      margin-top: 3px;
-    }
-  </style>
-</head>
-<body>
-  <h1>${title}</h1>
-  <div class="subtitle">${subtitle}</div>
-  <table>${rows}</table>
-</body>
-</html>`;
+
+    function buildExcelWorkbook() {
+      const usedColors = new Set();
+      Object.values(state.wells).forEach(groupId => {
+        const group = getGroup(groupId);
+        if (group) usedColors.add(group.color);
+      });
+
+      const colorStyles = new Map();
+      [...usedColors].forEach((color, index) => colorStyles.set(color, index + 3));
+
+      return zipFiles([
+        {
+          name: '[Content_Types].xml',
+          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`
+        },
+        {
+          name: '_rels/.rels',
+          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`
+        },
+        {
+          name: 'xl/workbook.xml',
+          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Placa" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`
+        },
+        {
+          name: 'xl/_rels/workbook.xml.rels',
+          content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`
+        },
+        { name: 'xl/styles.xml', content: buildStyles(colorStyles) },
+        { name: 'xl/worksheets/sheet1.xml', content: buildSheetXml(colorStyles) }
+      ]);
     }
 
     function download(filename, content, type) {
@@ -1119,7 +1263,7 @@
     });
 
     el.downloadExcelBtn.addEventListener('click', () => {
-      download(`placa_${state.preset}_pocos_layout.xls`, buildExcelHtml(), 'application/vnd.ms-excel;charset=utf-8');
+      download(`placa_${state.preset}_pocos_layout.xlsx`, buildExcelWorkbook(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     });
 
     el.printBtn.addEventListener('click', () => {
